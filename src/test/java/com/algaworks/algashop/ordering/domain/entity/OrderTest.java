@@ -16,12 +16,31 @@ import java.util.Set;
 class OrderTest {
 
     @Test
-    public void shouldGenerate() {
-        Order order = Order.draft(new CustomerId());
+    void shouldGenerateDraftOrder() {
+        CustomerId customerId = new CustomerId();
+        Order order = Order.draft(customerId);
+
+        Assertions.assertWith(order,
+                o-> Assertions.assertThat(o.id()).isNotNull(),
+                o-> Assertions.assertThat(o.customerId()).isEqualTo(customerId),
+                o-> Assertions.assertThat(o.totalAmount()).isEqualTo(Money.ZERO),
+                o-> Assertions.assertThat(o.totalItems()).isEqualTo(Quantity.ZERO),
+                o-> Assertions.assertThat(o.isDraft()).isTrue(),
+                o-> Assertions.assertThat(o.items()).isEmpty(),
+
+                o -> Assertions.assertThat(o.placedAt()).isNull(),
+                o -> Assertions.assertThat(o.paidAt()).isNull(),
+                o -> Assertions.assertThat(o.canceledAt()).isNull(),
+                o -> Assertions.assertThat(o.readyAt()).isNull(),
+                o -> Assertions.assertThat(o.billing()).isNull(),
+                o -> Assertions.assertThat(o.shipping()).isNull(),
+                o -> Assertions.assertThat(o.paymentMethod()).isNull()
+
+        );
     }
 
     @Test
-    public void shouldAddItem() {
+    void shouldAddItem() {
         Order order = Order.draft(new CustomerId());
 
         Product product = ProductTestDataBuilder.aProduct().build();
@@ -46,7 +65,7 @@ class OrderTest {
     }
 
     @Test
-    public void shouldGenerateExceptionWhenTryToChangeItemSet() {
+    void shouldGenerateExceptionWhenTryToChangeItemSet() {
         Order order = Order.draft(new CustomerId());
         Product product = ProductTestDataBuilder.aProduct().build();
 
@@ -62,7 +81,7 @@ class OrderTest {
     }
 
     @Test
-    public void shouldCalculateTotals() {
+    void shouldCalculateTotals() {
         Order order = Order.draft(new CustomerId());
 
         order.addItem(
@@ -80,14 +99,14 @@ class OrderTest {
     }
 
     @Test
-    public void givenDraftOrder_whenPlace_shouldChangeToPlaced() {
+    void givenDraftOrder_whenPlace_shouldChangeToPlaced() {
         Order order = OrderTestDataBuilder.anOrder().build();
         order.place();
         Assertions.assertThat(order.isPlaced()).isTrue();
     }
 
     @Test
-    public void givenPlacedOrder_whenMarkAsPaid_shouldChangeToPaid() {
+    void givenPlacedOrder_whenMarkAsPaid_shouldChangeToPaid() {
         Order order = OrderTestDataBuilder.anOrder().status(OrderStatus.PLACED).build();
         order.markAsPaid();
         Assertions.assertThat(order.isPaid()).isTrue();
@@ -95,52 +114,31 @@ class OrderTest {
     }
 
     @Test
-    public void givenPlacedOrder_whenTryToPlace_shouldGenerateException() {
+    void givenPlacedOrder_whenTryToPlace_shouldGenerateException() {
         Order order = OrderTestDataBuilder.anOrder().status(OrderStatus.PLACED).build();
         Assertions.assertThatExceptionOfType(OrderStatusCannotBeChangedException.class)
                 .isThrownBy(order::place);
     }
 
     @Test
-    public void givenDraftOrder_whenChangePaymentMethod_shouldAllowChange() {
+    void givenDraftOrder_whenChangePaymentMethod_shouldAllowChange() {
         Order order = Order.draft(new CustomerId());
         order.changePaymentMethod(PaymentMethod.CREDIT_CARD);
         Assertions.assertWith(order.paymentMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
     }
 
     @Test
-    public void givenDraftOrder_whenChangeBillingInfo_shouldAllowChange() {
-        Address address = Address.builder()
-                .street("Bourbon Street")
-                .number("1234")
-                .neighborhood("North Ville")
-                .complement("apt. 11")
-                .city("Montfort")
-                .state("South Carolina")
-                .zipCode(new ZipCode("79911")).build();
-
-        BillingInfo billingInfo = BillingInfo.builder()
-                .address(address)
-                .document(new Document("225-09-1992"))
-                .phone(new Phone("123-111-9911"))
-                .fullName(new FullName("John", "Doe"))
-                .build();
+    void givenDraftOrder_whenChangeBilling_shouldAllowChange() {
+        Billing billing = OrderTestDataBuilder.aBilling();
 
         Order order = Order.draft(new CustomerId());
-        order.changeBilling(billingInfo);
+        order.changeBilling(billing);
 
-        BillingInfo expectedBillingInfo = BillingInfo.builder()
-                .address(address)
-                .document(new Document("225-09-1992"))
-                .phone(new Phone("123-111-9911"))
-                .fullName(new FullName("John", "Doe"))
-                .build();
-
-        Assertions.assertThat(order.billing()).isEqualTo(expectedBillingInfo);
+        Assertions.assertThat(order.billing()).isEqualTo(billing);
     }
 
     @Test
-    public void givenDraftOrder_whenChangeShippingInfo_shouldAllowChange() {
+    void givenDraftOrder_whenChangeShippingInfo_shouldAllowChange() {
         Shipping shipping = OrderTestDataBuilder.aShipping();
         Order order = Order.draft(new CustomerId());
 
@@ -150,7 +148,7 @@ class OrderTest {
     }
 
     @Test
-    public void givenDraftOrderAndDeliveryDateInThePast_whenChangeShippingInfo_shouldNotAllowChange() {
+    void givenDraftOrderAndDeliveryDateInThePast_whenChangeShippingInfo_shouldNotAllowChange() {
         LocalDate expectedDeliveryDate = LocalDate.now().minusDays(2);
 
         Shipping shipping = OrderTestDataBuilder.aShipping().toBuilder()
@@ -160,11 +158,11 @@ class OrderTest {
         Order order = Order.draft(new CustomerId());
 
         Assertions.assertThatExceptionOfType(OrderInvalidShippingDeliveryDateException.class)
-                .isThrownBy(()-> order.changeShipping(shipping));
+                .isThrownBy(() -> order.changeShipping(shipping));
     }
 
     @Test
-    public void givenDraftOrder_whenChangeItem_shouldRecalculate() {
+    void givenDraftOrder_whenChangeItem_shouldRecalculate() {
         Order order = Order.draft(new CustomerId());
 
         order.addItem(

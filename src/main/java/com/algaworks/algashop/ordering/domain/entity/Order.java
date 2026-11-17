@@ -1,9 +1,6 @@
 package com.algaworks.algashop.ordering.domain.entity;
 
-import com.algaworks.algashop.ordering.domain.exception.OrderCannotBePlacedException;
-import com.algaworks.algashop.ordering.domain.exception.OrderDoesNotContainOrderItemException;
-import com.algaworks.algashop.ordering.domain.exception.OrderInvalidShippingDeliveryDateException;
-import com.algaworks.algashop.ordering.domain.exception.OrderStatusCannotBeChangedException;
+import com.algaworks.algashop.ordering.domain.exception.*;
 import com.algaworks.algashop.ordering.domain.valueobject.*;
 import com.algaworks.algashop.ordering.domain.valueobject.id.CustomerId;
 import com.algaworks.algashop.ordering.domain.valueobject.id.OrderId;
@@ -31,7 +28,7 @@ public class Order {
     private OffsetDateTime canceledAt;
     private OffsetDateTime readyAt;
 
-    private BillingInfo billing;
+    private Billing billing;
     private Shipping shipping;
 
     private OrderStatus status;
@@ -44,7 +41,7 @@ public class Order {
                  Money totalAmount, Quantity totalItems,
                  OffsetDateTime placedAt, OffsetDateTime paidAt,
                  OffsetDateTime canceledAt, OffsetDateTime readyAt,
-                 BillingInfo billing, Shipping shipping,
+                 Billing billing, Shipping shipping,
                  OrderStatus status, PaymentMethod paymentMethod,
                  Set<OrderItem> items) {
         this.setId(id);
@@ -81,6 +78,8 @@ public class Order {
     }
 
     public void addItem(Product product, Quantity quantity) {
+        verifyIfChangeable();
+
         Objects.requireNonNull(product);
         Objects.requireNonNull(quantity);
 
@@ -101,6 +100,17 @@ public class Order {
         this.recalculateTotals();
     }
 
+    public void removeItem(OrderItemId orderItemId) {
+        verifyIfChangeable();
+
+        Objects.requireNonNull(orderItemId);
+
+        OrderItem orderItem = findOrderItem(orderItemId);
+        this.items.remove(orderItem);
+
+        this.recalculateTotals();
+    }
+
     public void place() {
         this.verifyIfCanChangeToPlaced();
 
@@ -113,17 +123,28 @@ public class Order {
         this.setPaidAt(OffsetDateTime.now());
     }
 
+    public void markAsReady() {
+        this.changeStatus(OrderStatus.READY);
+        this.setReadyAt(OffsetDateTime.now());
+    }
+
     public void changePaymentMethod(PaymentMethod paymentMethod) {
+        verifyIfChangeable();
+
         Objects.requireNonNull(paymentMethod);
         this.setPaymentMethod(paymentMethod);
     }
 
-    public void changeBilling(BillingInfo billing) {
+    public void changeBilling(Billing billing) {
+        verifyIfChangeable();
+
         Objects.requireNonNull(billing);
         this.setBilling(billing);
     }
 
     public void changeShipping(Shipping newShipping) {
+        verifyIfChangeable();
+
         Objects.requireNonNull(newShipping);
 
         if (newShipping.expectedDate().isBefore(LocalDate.now())) {
@@ -134,6 +155,8 @@ public class Order {
     }
 
     public void changeItemQuantity(OrderItemId orderItemId, Quantity quantity) {
+        verifyIfChangeable();
+
         Objects.requireNonNull(orderItemId);
         Objects.requireNonNull(quantity);
 
@@ -141,6 +164,15 @@ public class Order {
         orderItem.changeQuantity(quantity);
 
         this.recalculateTotals();
+    }
+
+    public void cancel() {
+        if (this.isCanceled()) {
+            throw new OrderCannotBeCanceledException(this.id());
+        }
+
+        this.changeStatus(OrderStatus.CANCELED);
+        this.setCanceledAt(OffsetDateTime.now());
     }
 
     public boolean isDraft() {
@@ -153,6 +185,10 @@ public class Order {
 
     public boolean isPaid() {
         return OrderStatus.PAID.equals(this.status());
+    }
+
+    public boolean isCanceled() {
+        return OrderStatus.CANCELED.equals(this.status());
     }
 
     public OrderId id() {
@@ -187,7 +223,7 @@ public class Order {
         return readyAt;
     }
 
-    public BillingInfo billing() {
+    public Billing billing() {
         return billing;
     }
 
@@ -229,6 +265,7 @@ public class Order {
 
     private void changeStatus(OrderStatus newStatus) {
         Objects.requireNonNull(newStatus);
+
         if (this.status.canNotChangeTo(newStatus)) {
             throw new OrderStatusCannotBeChangedException(this.id(), this.status(), newStatus);
         }
@@ -248,6 +285,12 @@ public class Order {
         }
         if (this.items() == null || this.items().isEmpty()) {
             throw OrderCannotBePlacedException.noItems(this.id());
+        }
+    }
+
+    private void verifyIfChangeable() {
+        if (!this.isDraft()) {
+            throw new OrderCannotBeEditedException(this.id(), this.status());
         }
     }
 
@@ -295,7 +338,7 @@ public class Order {
         this.readyAt = readyAt;
     }
 
-    private void setBilling(BillingInfo billing) {
+    private void setBilling(Billing billing) {
         this.billing = billing;
     }
 
